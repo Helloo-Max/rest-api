@@ -45,7 +45,7 @@ class BookSerializer
 end
 
 # Endpoints
-get '/ ' do
+get '/' do
   'Welcome to BookList!'
 end
 
@@ -67,4 +67,10 @@ namespace '/api/v1' do
     books.map { |book| BookSerializer.new(book) }.to_json  # Instead of books.to_json to normalize output.
   end
 
+  get '/books/:id' do |id|
+    raise
+    book = Book.where(id: id).first
+    halt(404, { message:'Book Not Found'}.to_json) unless book
+    BookSerializer.new(book).to_json
+  end
 end
