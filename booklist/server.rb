@@ -53,18 +53,30 @@ end
 namespace '/api/v1' do
 
   helpers do
-      def base_url
-        @base_url ||= "#{request.env['rack.url_scheme']}://{request.env['HTTP_HOST']}"
-      end
+    def base_url
+      @base_url ||= "#{request.env['rack.url_scheme']}://{request.env['HTTP_HOST']}"
+    end
 
-      def json_params
-        begin
-          JSON.parse(request.body.read)
-        rescue
-          halt 400, { message:'Invalid JSON' }.to_json
-        end
+    def json_params
+      begin
+        JSON.parse(request.body.read)
+      rescue
+        halt 400, { message:'Invalid JSON' }.to_json
       end
     end
+
+    def book
+      @book ||= Book.where(id: params[:id]).first  #=> Mongoid::Criteria object
+    end
+
+    def halt_if_not_found!
+      halt(404, { message:'Book Not Found'}.to_json) unless book
+    end
+
+    def serialize(book)
+      BookSerializer.new(book).to_json
+    end
+  end
 
   before do
     content_type 'application/json'
@@ -83,10 +95,9 @@ namespace '/api/v1' do
   end
 
   # GET /books/6193b0d8ceabd8feb23904f8
-  get '/books/:id' do |id|
-    book = Book.where(id: id).first  #=> Mongoid::Criteria object
-    halt(404, { message:'Book Not Found'}.to_json) unless book
-    BookSerializer.new(book).to_json
+  get '/books/:id' do
+    halt_if_not_found!
+    serialize(book)
   end
 
   # POST /books
@@ -114,8 +125,7 @@ namespace '/api/v1' do
   end
 
   # DELETE /books/6193b0d8ceabd8feb23904f8
-  delete '/books/:id' do |id|
-    book = Book.where(id: id).first
+  delete '/books/:id' do
     book.destroy if book
     status 204
   end
