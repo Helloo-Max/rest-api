@@ -52,11 +52,26 @@ end
 # Useful for versioning.
 namespace '/api/v1' do
 
+  helpers do
+      def base_url
+        @base_url ||= "#{request.env['rack.url_scheme']}://{request.env['HTTP_HOST']}"
+      end
+
+      def json_params
+        begin
+          JSON.parse(request.body.read)
+        rescue
+          halt 400, { message:'Invalid JSON' }.to_json
+        end
+      end
+    end
+
   before do
     content_type 'application/json'
   end
 
-  get '/books' do  #=>  .../api/v1/books
+  # GET /books #=>  .../api/v1/books
+  get '/books' do
     books = Book.all
 
       # Go through each defined scope and filter the books if a value was given for this specific scope.
@@ -67,10 +82,41 @@ namespace '/api/v1' do
     books.map { |book| BookSerializer.new(book) }.to_json  # Instead of books.to_json to normalize output.
   end
 
+  # GET /books/6193b0d8ceabd8feb23904f8
   get '/books/:id' do |id|
-    raise
-    book = Book.where(id: id).first
+    book = Book.where(id: id).first  #=> Mongoid::Criteria object
     halt(404, { message:'Book Not Found'}.to_json) unless book
     BookSerializer.new(book).to_json
+  end
+
+  # POST /books
+  post '/books' do
+    book = Book.new(json_params)
+    if book.save
+      response.headers['Location'] = "#{base_url}/api/v1/books/#{book.id}"
+      status 201
+    else
+      status 422
+      body BookSerializer.new(book).to_json  #=> {..."author":null,"isbn":null,"errors":{"author":["can't be blank"],"isbn":["can't be blank"]}}%
+    end
+  end
+
+  # PATCH /books/6193b0d8ceabd8feb23904f8
+  patch '/books/:id' do |id|
+    book = Book.where(id: id).first
+    halt(404, { message:'Book Not Found'}.to_json) unless book
+    if book.update_attributes(json_params)
+      BookSerializer.new(book).to_json
+    else
+      status 422
+      body BookSerializer.new(book).to_json
+    end
+  end
+
+  # DELETE /books/6193b0d8ceabd8feb23904f8
+  delete '/books/:id' do |id|
+    book = Book.where(id: id).first
+    book.destroy if book
+    status 204
   end
 end
